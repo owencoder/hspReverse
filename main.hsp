@@ -1,0 +1,357 @@
+	#define global MASS			16
+	#define global TRUE			1
+	#define global FALSE		0
+	#define global NO_POINT		-1
+	#define global WHITE_POINT	0
+	#define global BLACK_POINT	1
+	
+	#module "osero_buf"
+		#deffunc ResetBoard array buf
+			x = 0 : y = 0
+			repeat
+				buf.x.y = NO_POINT;
+				if ( x == (MASS/2)-2 && y==(MASS/2)-1) { buf.x.y = WHITE_POINT }
+				if ( x == (MASS/2)-1 && y==(MASS/2)-1) { buf.x.y = BLACK_POINT }
+				if ( x == (MASS/2)-1 && y==(MASS/2)) { buf.x.y = WHITE_POINT }
+				if ( x == (MASS/2)-2 && y==(MASS/2)) { buf.x.y = BLACK_POINT }
+				x ++
+				if ( x >= length ( buf ) ) {
+					y ++ : x = 0
+					if ( y >= length ( buf ) ) { break }
+				}
+			loop
+		return
+	
+		#deffunc CopyArray array dest, array src
+			dim dest, length ( src ), length2 ( src )
+			repeat length ( src )
+				i = cnt
+				repeat length2 ( src )
+					dest.i.cnt = src.i.cnt
+				loop
+			loop
+		return
+	
+		#deffunc GetLimitArray array buf, var _x, var _y
+			_x = limit ( _x, 0, length ( buf ) -1 )
+			_y = limit ( _y, 0, length ( buf ) -1 )
+		return
+		
+		#defcfunc IsOverArray array buf, int _x, int _y
+			if ( _x >= length ( buf ) || _y >= length ( buf ) || _x < 0 || _y < 0 ) { return TRUE }
+		return FALSE
+	
+		#defcfunc GetMuchPoint array buf, int _kind
+			x = 0 : y = 0
+			count = 0
+			repeat
+				if ( buf.x.y == _kind ) { count ++ }
+				x ++
+				if ( x >= length ( buf ) ) {
+					y ++ : x = 0
+					if ( y >= length ( buf ) ) { break }
+				}
+			loop
+		return count
+	
+		#defcfunc IsFullOfBoard array buf
+			x = 0 : y = 0
+			flg = TRUE
+			repeat
+				if ( IsAlreadySetPoint ( buf, x, y ) == FALSE ) { flg = FALSE : break }
+				x ++
+				if ( x >= length ( buf ) ) {
+					y ++ : x = 0
+					if ( y >= length2 ( buf ) ) { break }
+				}
+			loop
+		return flg
+		
+	#global
+	
+	#module "osero_cpu"
+		#deffunc InitTwoMuch
+			dim p1, 3 : x = 0
+			dim p2, 3 : y = 0
+			p1 = -1 : p2 = -1
+			p1.1 = -1 : p1.2 = -1
+			p2.1 = -1 : p2.2 = -1
+		return
+	
+		#deffunc SetTwoMuch int _p1, int _p2, int _p1x, int _p1y, int _p2x, int _p2y
+			if ( p1 < _p1 ) {
+				p1 = _p1 : p1.1 = _p1x : p1.2 = _p1y
+			}
+			if ( p2 < _p2 ) {
+				p2 = _p2 : p2.1 = _p2x : p2.2 = _p2y
+			}
+		return
+	
+		#deffunc GetCPUPos var _x, var _y
+			_x = p1.1 : _y = p1.2
+		return
+			
+		#deffunc ConsCPU array buf, int _kind, int level, local _x, local _y
+			CopyArray tmp, buf
+			if ( level < 0 ) { return 0 }
+			repeat
+				if ( SetPoint ( tmp, _kind, _x, _y ) == TRUE ) {
+					ReversePoint tmp, _x, _y
+					SetTwoMuch GetMuchPoint ( tmp, _kind ), 0, _x, _y
+					ConsCPU tmp, _kind, level -1
+				}
+				_x ++
+				if ( _x >= length ( tmp ) ) {
+					_y ++ : _x = 0
+					if ( _y >= length2 ( tmp ) ) { break }
+				}
+			loop
+		return 0
+		
+		#deffunc GetMuchWayPoint array buf, int _kind, int level, local _x, local _y
+			if ( level < 0 ) { return num }
+			CopyArray tmpBuf, buf
+			repeat
+				if ( SetPoint ( tmpBuf, _kind, _x, _y ) == TRUE ) {
+					ReversePoint tmpBuf, _x, _y
+					GetMuchWayPoint tmpBuf, _kind^1, level - 1
+				}
+				_x ++
+				if ( _x >= length ( tmpBuf ) ) {
+					_y ++ : _x = 0
+					if ( _y >= length2 ( tmpBuf ) ) { break }
+				}
+			loop
+		return
+	
+	#global
+	
+	#module "osero_rev"
+		#defcfunc IsSetPointToPoint array buf, int x, int y, int add_x, int add_y
+			x_next = x : y_next = y
+			kind = buf.x.y
+			flg = FALSE
+			repeat
+				x_next += add_x : y_next += add_y
+				if ( IsOverArray ( buf, x_next, y_next ) == TRUE ) { break }
+				if ( IsAlreadySetPoint ( buf, x_next, y_next ) == FALSE ) { break }
+				if ( buf.x_next.y_next == kind && cnt == 0 ) { break }
+				if ( buf.x_next.y_next == kind ) { flg = TRUE : break }
+			loop
+		return flg
+	
+		#defcfunc CanSetPoint array buf, int _kind, int x, int y
+			flg = FALSE
+			repeat 8
+				HowMove x_next, y_next, cnt
+				tmpx = x : tmpy = y
+				repeat
+					tmpx += x_next : tmpy += y_next
+					if ( IsOverArray ( buf, tmpx, tmpy ) == TRUE ) { break }
+					if ( buf.tmpx.tmpy == NO_POINT ) { break }
+					//--> 向いたほうに既に自分のコマがあれば無視する <--//
+					if ( buf.tmpx.tmpy == _kind && cnt == 0 ) { break }
+					if ( buf.tmpx.tmpy == _kind ) {
+						flg = TRUE : break
+					}
+				loop
+				if ( flg == TRUE ) { break }
+			loop
+		return flg;
+	
+		#deffunc HowMove var add_x, var add_y, int num
+			switch ( num )
+				case 0:
+					add_x = 1 : add_y = 0
+				swbreak;
+				case 1:
+					add_x = 0 : add_y = 1
+				swbreak;
+				case 2:
+					add_x = -1 : add_y = 0
+				swbreak;
+				case 3:
+					add_x = 0 : add_y = -1
+				swbreak;
+				case 4:
+					add_x = -1 : add_y = -1
+				swbreak;
+				case 5:
+					add_x = 1 : add_y = 1
+				swbreak;
+				case 6:
+					add_x = -1 : add_y = 1
+				swbreak
+				case 7:
+					add_x = 1 : add_y = -1
+				swbreak
+			swend
+		return
+		
+		#deffunc ReversePoint array buf, int x, int y
+			// 置いてねえよカス
+			if ( IsAlreadySetPoint ( buf, x, y ) == FALSE ) { return FALSE }
+			//	おまえは誰なんだカス
+			dim ownKind
+			ownKind = buf.x.y;
+			
+			dim x_plus : dim y_plus;
+			dim tmpx : dim tmpy
+			//	全方向
+			repeat 8
+				HowMove x_plus, y_plus, cnt
+				if ( IsSetPointToPoint ( buf, x, y, x_plus, y_plus ) == FALSE ) { continue }
+				tmpx = x : tmpy = y
+				repeat
+					tmpx += x_plus : tmpy += y_plus
+					if ( IsOverArray ( buf, tmpx, tmpy ) == TRUE ) { break }
+					if ( buf.tmpx.tmpy == ownKind ) { break }
+					buf.tmpx.tmpy = ownKind;
+				loop
+			loop
+		return
+	#global
+	
+	#module "osero_system"
+		#defcfunc IsAlreadySetPoint array buf, int x, int y
+			if ( IsOverArray ( buf, x, y ) == TRUE ) { return FALSE }
+			if ( buf.x.y != NO_POINT ) { return TRUE }
+		return FALSE
+	
+		#defcfunc CanSetBoardPoint array buf, int kind
+			_x = 0 : _y = 0
+			flg = FALSE
+			repeat
+				if ( CanSetPoint ( buf, kind, _x, _y ) == TRUE ) { flg = TRUE : break }
+				_x ++
+				if ( _x >= length ( buf ) ) {
+					_y ++ : _x = 0
+					if ( _y >= length2 ( buf ) ) { break }
+				}
+			loop
+		return flg
+	
+		#defcfunc SetPoint array buf, int kind, int x, int y
+			if ( IsAlreadySetPoint ( buf, x, y ) == TRUE ) { return FALSE }
+			if ( CanSetPoint ( buf, kind, x, y ) == FALSE ) { return FALSE }
+			buf.x.y = kind;
+		return TRUE
+	
+		#deffunc PrintMass array buf, int px, int py, int ofx, int ofy, int pointPos, int pointKind
+			x = 0 : y = 0
+			repeat
+				if ( x == px && y == py ) { color 0xff, 0, 0 } else { color }
+				pos ofx + ( 20*x ), ofy + ( 20*y )
+				if ( CanSetPoint ( buf, pointKind, x, y ) == TRUE && pointPos == TRUE ) {
+					mes "△"
+				} else {
+					switch ( buf.x.y )
+						case NO_POINT: mes "--" : swbreak
+						case WHITE_POINT: mes "○" : swbreak
+						case BLACK_POINT: mes "●" : swbreak
+					swend
+				}
+				x ++
+				if ( x >= length ( buf ) ) {
+					y ++ : x = 0
+					if ( y >= length ( buf ) ) { break }
+				}
+			loop
+		return
+				
+	
+	#global
+	
+	dim data, MASS, MASS
+	x = 0 : y = 0
+	tx = 0 : ty = 0
+	i = 0 : turn = 0
+	mesPoint = FALSE;
+	ResetBoard data;
+	
+	repeat
+		redraw 0
+			color 0xff, 0xff, 0xff : boxf
+			pos 5, 5 : color
+			if ( turn == FALSE ) { mes "あなたのターンです" } else { mes "CPUのターンです" }
+			PrintMass data, x,  y, 20, 20, mesPoint, BLACK_POINT
+		redraw 1
+	
+		if ( turn == TRUE ) {
+			title "CPU考察中・・・"
+			//wait 100
+			InitTwoMuch;
+			ConsCPU data, WHITE_POINT, 100
+			GetCPUPos tx, ty
+			if ( tx == -1 || ty == -1 ) {
+				dialog "CPUが配置不可能なのでスキップします"
+				turn ^TRUE
+				continue
+			}
+			i = SetPoint ( data, WHITE_POINT, tx, ty )
+			ReversePoint data, tx, ty
+			turn ^TRUE
+			continue
+		}
+	
+		title "白: "+ GetMuchPoint ( data, WHITE_POINT ) +"/黒: "+ GetMuchPoint ( data, BLACK_POINT )
+		
+		if ( IsFullOfBoard ( data ) == TRUE ) {
+			if ( GetMuchPoint ( data, WHITE_POINT ) > GetMuchPoint ( data, BLACK_POINT ) ) {
+				dialog "白の勝ち！"
+			} else {
+				dialog "黒の勝ち！"
+			}
+			end
+		}
+		
+		if ( CanSetBoardPoint ( data, BLACK_POINT ) == FALSE ) {
+			dialog "あなたはコマが置けなくなりました。スキップします"
+			turn^TRUE
+			continue
+		}
+	
+		/* // なんか勝手にCPU同士でやりあう
+			InitTwoMuch;
+			ConsCPU data, BLACK_POINT, 100
+			GetCPUPos tx, ty
+			if ( tx == -1 || ty == -1 ) { turn^TRUE : continue }
+			i = SetPoint ( data, BLACK_POINT, tx, ty )
+			ReversePoint data, tx, ty
+			turn ^TRUE
+			continue
+		*/
+
+		
+		repeat
+			stick key, 64
+			if ( key & 1 ) { x -- : break }
+			if ( key & 2 ) { y -- : break }
+			if ( key & 4 ) { x ++ : break }
+			if ( key & 8 ) { y ++ : break }
+			if ( key & 32 ) {
+					
+				if ( SetPoint ( data, BLACK_POINT, x, y ) == FALSE ) {
+					title "置けません"
+				} else {
+					GetMuchWayPoint data, BLACK_POINT, 10
+					ReversePoint data, x, y
+					turn ^TRUE;
+					break
+				}
+			}
+			if ( key & 64 ) {
+				if ( mesPoint != TRUE ) {
+					mesPoint = TRUE;
+					break
+				}
+			} else {
+				if ( mesPoint != FALSE ) {
+					mesPoint = FALSE;
+					break
+				}
+			}
+			wait 1
+		loop
+		GetLimitArray data, x, y
+	loop
